@@ -1,4 +1,5 @@
 # mqqt_publisher
+API: https://api.data.gov.sg/v1/environment/air-temperature
 
 ## dependencies
 ```
