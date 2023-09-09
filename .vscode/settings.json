@@ -73,6 +73,8 @@
         "variant": "cpp",
         "bitset": "cpp",
         "complex": "cpp",
-        "format": "cpp"
+        "format": "cpp",
+        "strstream": "cpp",
+        "fstream": "cpp"
     }
 }
