@@ -10,6 +10,7 @@
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <unordered_map>
 #include <mosquitto.h>
 
 #include <iostream>
@@ -68,95 +69,65 @@ public:
     }
 };
 
-void findAPIValue(boost::property_tree::ptree const &node, std::string field, std::string &out)
+void APIparse(std::string json, std::unordered_map<std::string, std::string> &data)
 {
-    auto it = node.find(field);
-
-    if (it == node.not_found())
-        for (auto const &child : node)
-            findAPIValue(child.second, field, out);
-
-    else
-        out = it->second.data();
-}
-void findIDsValues(boost::property_tree::ptree const &node, std::string field, std::string &out)
-{
-    auto it = node.find("station_id");
-
-    if (it == node.not_found())
-        for (auto const &child : node)
-            findIDsValues(child.second, field, out);
-    else
-    {
-        auto data = it->second.data();
-        if (data == field)
-        {
-            it = node.find("value");
-            out = it->second.data();
-        }
-    }
-}
-
-std::string api_status = "c";
-
-void getFieldFromJson(std::string json, std::vector<std::pair<std::string, std::string>> &IDs)
-{
-    std::pair<boost::property_tree::ptree::const_assoc_iterator, boost::property_tree::ptree> tmp;
     std::stringstream jsonEncoded(json);
     boost::property_tree::ptree root;
     boost::property_tree::read_json(jsonEncoded, root);
 
-    if (root.empty())
-        return;
+    data["api_status"] = root.get<std::string>("api_info.status");
 
-    findAPIValue(root, "status", api_status);
-
-    for (size_t i = 0; i < IDs.size(); i++)
+    BOOST_FOREACH (boost::property_tree::ptree::value_type &v, root.get_child("items..readings"))
     {
-        findIDsValues(root, IDs[i].first, IDs[i].second);
+        if (v.second.get<std::string>("station_id") == "S50")
+            data["S50"] = v.second.get<std::string>("value");
+
+        else if (v.second.get<std::string>("station_id") == "S60")
+            data["S60"] = v.second.get<std::string>("value");
+
+        else if (v.second.get<std::string>("station_id") == "S107")
+            data["S107"] = v.second.get<std::string>("value");
     }
 }
 
 int main()
 {
 
-    std::vector<std::pair<std::string, std::string>> IDs = {{"S50", "0"}, {"S107", "0"}, {"S60", "0"}};
+    std::unordered_map<std::string, std::string> data;
 
     Client client;
     client.connectToApi();
 
-    std::string PASSWORD = "writeonly";
-    std::string LOGIN = "wo";
-    std::string HOST = "test.mosquitto.org";
-    std::string CRT = "./certs/mosquitto.org.crt";
+    std::string password = "writeonly";
+    std::string login = "wo";
+    std::string host = "test.mosquitto.org";
+    std::string crt = "./certs/mosquitto.org.crt";
 
     std::string topicIDs = "api/temperature/";
     std::string topicStatus = "api/status";
 
-    int PORT = 8885;
-    int KEEPALIVE = 60;
+    int port = 8885;
+    int keepalive = 60;
 
     mosquitto_lib_init();
 
-    mosquitto *mos = mosquitto_new(HOST.c_str(), true, NULL);
+    mosquitto *mos = mosquitto_new(host.c_str(), true, NULL);
 
-    mosquitto_tls_set(mos, CRT.c_str(), NULL, NULL, NULL, NULL);
+    mosquitto_tls_set(mos, crt.c_str(), NULL, NULL, NULL, NULL);
 
-    mosquitto_username_pw_set(mos, LOGIN.c_str(), PASSWORD.c_str());
-    mosquitto_connect(mos, HOST.c_str(), PORT, KEEPALIVE);
+    mosquitto_username_pw_set(mos, login.c_str(), password.c_str());
+    mosquitto_connect(mos, host.c_str(), port, keepalive);
 
     while (MOSQ_ERR_SUCCESS == mosquitto_loop(mos, -1, 1))
     {
+        APIparse(client.getResponse(), data);
 
-        getFieldFromJson(client.getResponse(), IDs);
-
-        for (int i = 0; i < IDs.size(); ++i)
-        {
-            mosquitto_publish(mos, NULL,  (topicIDs + IDs[i].first).c_str(), strlen(IDs[i].second.c_str()), IDs[i].second.c_str(), 0, true);
-        }
-
-        mosquitto_publish(mos, NULL, topicStatus.c_str(), strlen(api_status.c_str()), api_status.c_str(), 0, true);
+        mosquitto_publish(mos, NULL, (topicIDs + "S50").c_str(), strlen(data["S50"].c_str()), data["S50"].c_str(), 0, true);
+        mosquitto_publish(mos, NULL, (topicIDs + "S60").c_str(), strlen(data["S60"].c_str()), data["S60"].c_str(), 0, true);
+        mosquitto_publish(mos, NULL, (topicIDs + "S107").c_str(), strlen(data["S107"].c_str()), data["S107"].c_str(), 0, true);
+        mosquitto_publish(mos, NULL, topicStatus.c_str(), strlen(data["api_status"].c_str()), data["api_status"].c_str(), 0, true);
     }
+    
 
     mosquitto_disconnect(mos);
     mosquitto_destroy(mos);
