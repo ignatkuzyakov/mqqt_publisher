@@ -8,7 +8,7 @@ sudo apt-get install -y libboost-all-dev mosquitto mosquitto-clients libmosquitt
 
 ## build
 ```
-g++ mqqt_publisher.cpp -o mqqt_publisher -lssl -lcrypto -lmosquitto
+g++-13 mqqt_publisher.cpp -o mqqt_publisher -lssl -lcrypto -lmosquitto
 ```
 
 ## subscribe
