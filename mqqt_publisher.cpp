@@ -36,7 +36,6 @@ private:
     std::string page = "/v1/environment/air-temperature";
     std::string port = "443";
 
-
 private:
     http::request<boost::beast::http::string_body> req;
 
@@ -91,62 +90,35 @@ public:
     {
         mosquitto_lib_init();
         mos = mosquitto_new(host, true, NULL);
-        
+
         if (!mos)
-        {
-            mosquitto_lib_cleanup();
             throw MQTTError("Exception: mosquitto_new");
-        }
     }
     void tls_set(const char *cafile = NULL,
                  const char *capath = NULL, const char *certfile = NULL,
                  const char *keyfile = NULL, int (*pw_callback)(char *buf, int size, int rwflag, void *userdata) = NULL)
     {
         if (mosquitto_tls_set(mos, cafile, capath, certfile, keyfile, pw_callback) != MOSQ_ERR_SUCCESS)
-        {
-            mosquitto_destroy(mos);
-            mosquitto_lib_cleanup();
-
             throw MQTTError("Exception: mosquitto_tls_set");
-        }
     }
 
     void set_user(const char *login, const char *password)
     {
         if (mosquitto_username_pw_set(mos, login, password) != MOSQ_ERR_SUCCESS)
-        {
-            mosquitto_destroy(mos);
-            mosquitto_lib_cleanup();
-
             throw MQTTError("Exception: mosquitto_username_pw_set");
-        }
     }
     void connect(const char *host, int port, int keepalive = 60)
     {
         if (mosquitto_connect(mos, host, port, keepalive) != MOSQ_ERR_SUCCESS)
-        {
-            mosquitto_destroy(mos);
-            mosquitto_lib_cleanup();
-
             throw MQTTError("Exception: mosquitto_connect");
-        }
     }
 
-    int loop(int timeout, int max_packets)
-    {
-        return (mosquitto_loop(mos, -1, 1) == MOSQ_ERR_SUCCESS);
-    }
+    int loop(int timeout, int max_packets) { return (mosquitto_loop(mos, -1, 1) == MOSQ_ERR_SUCCESS); }
 
     void publish(int *mid, const char *topic, int payloadlen, const void *payload, int qos = 0, bool retain = false)
     {
         if (mosquitto_publish(mos, mid, topic, payloadlen, payload, qos, retain) != MOSQ_ERR_SUCCESS)
-        {
-            mosquitto_disconnect(mos);
-            mosquitto_destroy(mos);
-            mosquitto_lib_cleanup();
-
             throw MQTTError("Exception: mosquitto_publish");
-        }
     }
 
     ~MQTTWrapper()
@@ -180,7 +152,6 @@ void APIparse(std::string json, std::unordered_map<std::string, std::string> &da
 
 int main()
 {
-
     std::string topicIDs = "api/temperature/";
     std::string topicStatus = "api/status";
 
@@ -200,19 +171,24 @@ int main()
 
     client.connectToApi();
 
-    mqtt.tls_set(crt);
-    mqtt.set_user(login, password);
-    mqtt.connect(host, port);
-
-    while (mqtt.loop(-1, 1))
+    try
     {
-        APIparse(client.getResponse(), data);
+        mqtt.tls_set(crt);
+        mqtt.set_user(login, password);
+        mqtt.connect(host, port);
 
-        mqtt.publish(NULL, (topicIDs + "S50").c_str(), strlen(data["S50"].c_str()), data["S50"].c_str());
-        mqtt.publish(NULL, (topicIDs + "S60").c_str(), strlen(data["S60"].c_str()), data["S60"].c_str());
-        mqtt.publish(NULL, (topicIDs + "S107").c_str(), strlen(data["S107"].c_str()), data["S107"].c_str());
-        mqtt.publish(NULL, topicStatus.c_str(), strlen(data["api_status"].c_str()), data["api_status"].c_str());
+        while (mqtt.loop(-1, 1))
+        {
+            APIparse(client.getResponse(), data);
+
+            mqtt.publish(NULL, (topicIDs + "S50").c_str(), strlen(data["S50"].c_str()), data["S50"].c_str());
+            mqtt.publish(NULL, (topicIDs + "S60").c_str(), strlen(data["S60"].c_str()), data["S60"].c_str());
+            mqtt.publish(NULL, (topicIDs + "S107").c_str(), strlen(data["S107"].c_str()), data["S107"].c_str());
+            mqtt.publish(NULL, topicStatus.c_str(), strlen(data["api_status"].c_str()), data["api_status"].c_str());
+        }
     }
+
+    catch (MQTTError& err) { std::cout << err.what() << std::endl; }
 
     return 0;
 }
