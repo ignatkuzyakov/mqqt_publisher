@@ -86,16 +86,16 @@ private:
     mosquitto *mos;
 
 public:
-    MQTTWrapper(std::string host)
+    MQTTWrapper(const std::string &host)
     {
         mosquitto_lib_init();
         mos = mosquitto_new(host.c_str(), true, NULL);
 
         if (!mos) throw MQTTError("Exception: mosquitto_new");
     }
-    void tls_set(std::string cafile = "",
-                 std::string capath = "", std::string certfile = "",
-                 std::string keyfile = "", int (*pw_callback)(char *buf, int size, int rwflag, void *userdata) = NULL)
+    void tls_set(const std::string &cafile = "",
+                 const std::string &capath = "", const std::string &certfile = "",
+                 const std::string &keyfile = "", int (*pw_callback)(char *buf, int size, int rwflag, void *userdata) = NULL)
     {
         if (mosquitto_tls_set(mos,
                               (cafile.size() == 0) ? NULL : cafile.c_str(),
@@ -105,13 +105,13 @@ public:
             throw MQTTError("Exception: mosquitto_tls_set");
     }
 
-    void set_user(std::string login, std::string password)
+    void set_user(const std::string &login, const std::string &password)
     {
         if (mosquitto_username_pw_set(mos, login.c_str(), password.c_str()) != MOSQ_ERR_SUCCESS)
             throw MQTTError("Exception: mosquitto_username_pw_set");
     }
 
-    void connect(std::string host, int port, int keepalive = 60)
+    void connect(const std::string &host, int port, int keepalive = 60)
     {
         if (mosquitto_connect(mos, host.c_str(), port, keepalive) != MOSQ_ERR_SUCCESS)
             throw MQTTError("Exception: mosquitto_connect");
@@ -119,7 +119,7 @@ public:
 
     int loop(int timeout, int max_packets) { return (mosquitto_loop(mos, -1, 1) == MOSQ_ERR_SUCCESS); }
 
-    void publish(std::string topic, std::string payload, int *mid = NULL, int qos = 0, bool retain = false)
+    void publish(const std::string &topic, const std::string &payload, int *mid = NULL, int qos = 0, bool retain = false)
     {
         if (mosquitto_publish(mos, mid, topic.c_str(), payload.size(), (const void *)payload.c_str(), qos, retain) != MOSQ_ERR_SUCCESS)
             throw MQTTError("Exception: mosquitto_publish");
